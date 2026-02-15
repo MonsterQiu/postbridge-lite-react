@@ -387,6 +387,31 @@ textarea:focus {
   font-size: 13px;
 }
 
+.legalCard h1 {
+  margin-bottom: 4px;
+}
+
+.legalBody {
+  margin-top: 8px;
+  color: #2b3a49;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.legalBody h2 {
+  margin: 14px 0 6px;
+  font-size: 16px;
+}
+
+.legalBody p {
+  margin: 6px 0;
+}
+
+.legalList {
+  margin: 0;
+  padding-left: 20px;
+}
+
 @media (max-width: 1060px) {
   .layout {
     grid-template-columns: 1fr;

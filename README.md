@@ -30,6 +30,8 @@ npm run dev
 
 - `http://127.0.0.1:5173`
 - OAuth 回调页：`http://127.0.0.1:5173/tiktok/callback`
+- 服务条款页：`http://127.0.0.1:5173/terms`
+- 隐私政策页：`http://127.0.0.1:5173/privacy`
 
 ## 部署到 Vercel（tiktok.athinker.net）
 
@@ -67,6 +69,8 @@ dig tiktok.athinker.net +short
 在 TikTok Developer Portal 里：
 
 - `Redirect URI` 填：`https://tiktok.athinker.net/tiktok/callback`
+- `Terms of Service URL` 填：`https://tiktok.athinker.net/terms`
+- `Privacy Policy URL` 填：`https://tiktok.athinker.net/privacy`
 
 后端也要一致：
 

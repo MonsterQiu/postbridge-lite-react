@@ -76,6 +76,8 @@ const fmtNow = () =>
 
 function App() {
   const route = useMemo(() => getRouteInfo(), []);
+  const isTermsRoute = route.path === "/terms";
+  const isPrivacyRoute = route.path === "/privacy";
   const isCallbackRoute = route.path === "/tiktok/callback";
 
   const [apiBase, setApiBase] = useState(() => initialApiBase());
@@ -129,6 +131,14 @@ function App() {
   const base = useMemo(() => sanitizeApiBase(apiBase), [apiBase]);
   const redirectUri = useMemo(
     () => (typeof window !== "undefined" ? `${window.location.origin}/tiktok/callback` : ""),
+    []
+  );
+  const termsUri = useMemo(
+    () => (typeof window !== "undefined" ? `${window.location.origin}/terms` : ""),
+    []
+  );
+  const privacyUri = useMemo(
+    () => (typeof window !== "undefined" ? `${window.location.origin}/privacy` : ""),
     []
   );
 
@@ -425,6 +435,95 @@ function App() {
     return `tag ${s}`;
   };
 
+  if (isTermsRoute || isPrivacyRoute) {
+    const title = isTermsRoute ? "服务条款" : "隐私政策";
+    const updated = "2026-02-15";
+    return (
+      <>
+        <div className="backdrop backOne" />
+        <div className="backdrop backTwo" />
+        <main className="callbackWrap">
+          <article className="panel callbackCard legalCard">
+            <p className="eyebrow">athinker.net</p>
+            <h1>{title}</h1>
+            <p className="subtitle">最后更新：{updated}</p>
+
+            {isTermsRoute ? (
+              <div className="legalBody">
+                <p>
+                  本服务提供 TikTok OAuth 连接、发布任务创建、队列执行与日志查看能力。使用本服务即表示你同意按本条款使用。
+                </p>
+                <h2>1. 许可使用</h2>
+                <ul className="legalList">
+                  <li>你只能在合法合规场景中使用本服务。</li>
+                  <li>你不得利用本服务发布违法、侵权、欺诈或骚扰内容。</li>
+                  <li>你需要遵守 TikTok 平台政策与开发者规则。</li>
+                </ul>
+                <h2>2. 账号与安全</h2>
+                <ul className="legalList">
+                  <li>你应妥善保管账号访问权限，不得共享给未授权人员。</li>
+                  <li>若发现异常访问，请立即停止使用并联系支持。</li>
+                </ul>
+                <h2>3. 服务变更</h2>
+                <ul className="legalList">
+                  <li>我们可根据法规、平台政策或技术变更调整服务功能。</li>
+                  <li>我们可能对接口、配额或可用性进行必要维护。</li>
+                </ul>
+                <h2>4. 责任限制</h2>
+                <ul className="legalList">
+                  <li>你对发布内容及其后果承担全部责任。</li>
+                  <li>本服务按“现状”提供，不承诺持续无中断或绝对无错误。</li>
+                </ul>
+                <h2>5. 联系方式</h2>
+                <p>如需支持，请联系：support@athinker.net</p>
+              </div>
+            ) : (
+              <div className="legalBody">
+                <p>
+                  本隐私政策说明我们如何收集、使用、存储和保护你在使用本服务时提供的信息。
+                </p>
+                <h2>1. 收集的信息</h2>
+                <ul className="legalList">
+                  <li>TikTok OAuth 返回的授权信息（如 open_id、access token、refresh token、scope）。</li>
+                  <li>你主动提交的发布任务内容（标题、媒体地址、发布时间、任务状态）。</li>
+                  <li>服务运行日志与错误信息（用于故障排查和审计）。</li>
+                </ul>
+                <h2>2. 使用目的</h2>
+                <ul className="legalList">
+                  <li>用于完成账号连接、内容发布、任务调度和结果查询。</li>
+                  <li>用于安全审计、问题排查和服务质量改进。</li>
+                </ul>
+                <h2>3. 数据存储与保护</h2>
+                <ul className="legalList">
+                  <li>数据存储在你配置的后端环境中，默认不会公开展示。</li>
+                  <li>我们建议启用 HTTPS、最小权限访问和定期密钥轮换。</li>
+                </ul>
+                <h2>4. 数据共享</h2>
+                <ul className="legalList">
+                  <li>除为实现发布功能向 TikTok API 传输必要信息外，我们不会主动向第三方出售你的数据。</li>
+                  <li>法律法规要求时，我们可能依法配合提供必要数据。</li>
+                </ul>
+                <h2>5. 你的权利</h2>
+                <ul className="legalList">
+                  <li>你可随时停止使用服务并要求删除账号相关数据（在技术可行范围内）。</li>
+                  <li>你可要求导出与你账号相关的主要操作记录。</li>
+                </ul>
+                <h2>6. 联系方式</h2>
+                <p>如需隐私相关支持，请联系：privacy@athinker.net</p>
+              </div>
+            )}
+
+            <div className="actions">
+              <a className="btn btnGhost" href="/">返回控制台</a>
+              <a className="btn btnGhost" href={termsUri}>服务条款 URL</a>
+              <a className="btn btnGhost" href={privacyUri}>隐私政策 URL</a>
+            </div>
+          </article>
+        </main>
+      </>
+    );
+  }
+
   if (isCallbackRoute) {
     return (
       <>
@@ -535,8 +634,20 @@ function App() {
               回调地址（配置到 TikTok Portal 的 Redirect URI）
               <input readOnly value={redirectUri} />
             </label>
+            <div className="grid two">
+              <label>
+                服务条款 URL
+                <input readOnly value={termsUri} />
+              </label>
+              <label>
+                隐私政策 URL
+                <input readOnly value={privacyUri} />
+              </label>
+            </div>
             <div className="actions">
               <button className="btn btnGhost" onClick={() => runSafely(() => copyText(redirectUri, "Redirect URI"))}>复制回调地址</button>
+              <button className="btn btnGhost" onClick={() => runSafely(() => copyText(termsUri, "Terms URL"))}>复制服务条款 URL</button>
+              <button className="btn btnGhost" onClick={() => runSafely(() => copyText(privacyUri, "Privacy URL"))}>复制隐私政策 URL</button>
               <button className="btn" onClick={() => runSafely(() => handleAuthUrl(true))}>生成授权链接并打开</button>
               <button className="btn btnGhost" onClick={() => runSafely(handleRefreshToken)}>刷新 Token</button>
             </div>
