@@ -178,6 +178,7 @@ function App() {
   const [callbackMessage, setCallbackMessage] = useState("");
 
   const timerRef = useRef(null);
+  const callbackAutoExchangedCodeRef = useRef("");
 
   const base = useMemo(() => sanitizeApiBase(apiBase), [apiBase]);
   const redirectUri = useMemo(
@@ -432,7 +433,7 @@ function App() {
     }
   };
 
-  const exchangeWithCode = async (codeText) => {
+  const exchangeWithCode = useCallback(async (codeText) => {
     const code = codeText.trim();
     if (!code) {
       throw new Error("code 不能为空");
@@ -445,7 +446,7 @@ function App() {
     appendLog("换取 Token 成功", data);
     await loadAccounts();
     return data;
-  };
+  }, [appendLog, loadAccounts, profile, request]);
 
   const handleExchange = async () => {
     if (!authCode.trim()) {
@@ -611,6 +612,42 @@ function App() {
   }, [appendLog, isCallbackRoute, route.code]);
 
   useEffect(() => {
+    if (!isCallbackRoute) {
+      return;
+    }
+    if (callbackError) {
+      return;
+    }
+    const code = (callbackCode || route.code || "").trim();
+    if (!code) {
+      return;
+    }
+    if (callbackAutoExchangedCodeRef.current === code) {
+      return;
+    }
+    callbackAutoExchangedCodeRef.current = code;
+
+    runSafely(async () => {
+      setCallbackBusy(true);
+      setCallbackMessage("检测到回调 code，正在自动换取 Token...");
+      try {
+        await exchangeWithCode(code);
+        setCallbackMessage("已自动换取 Token，正在返回控制台...");
+        if (typeof window !== "undefined") {
+          window.setTimeout(() => {
+            window.location.href = "/";
+          }, 800);
+        }
+      } catch (err) {
+        setCallbackMessage(`自动换取失败：${err.message}。请检查 API Base 后手动重试。`);
+        throw err;
+      } finally {
+        setCallbackBusy(false);
+      }
+    }, "自动换取 Token");
+  }, [callbackCode, callbackError, exchangeWithCode, isCallbackRoute, route.code, runSafely]);
+
+  useEffect(() => {
     if (autoRefreshOn && !isCallbackRoute) {
       timerRef.current = setInterval(() => {
         runSafely(loadAll);
@@ -698,7 +735,7 @@ function App() {
         <article className="card callbackCard">
           <p className="brandMini">TikTok OAuth</p>
           <h1>回调已到达</h1>
-          <p className="muted">确认 API Base 与 Profile 后，点击换取 Token。</p>
+          <p className="muted">检测到 code 后会自动换取 Token；失败时可手动重试。</p>
 
           <div className="grid two">
             <label>
