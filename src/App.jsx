@@ -117,9 +117,15 @@ function App() {
   const [posts, setPosts] = useState([]);
   const [postStatusFilter, setPostStatusFilter] = useState("");
 
-  const [authScopes, setAuthScopes] = useState("user.info.basic,video.publish,video.upload");
   const [authUrl, setAuthUrl] = useState("");
   const [authCode, setAuthCode] = useState("");
+  const [runtimeConfig, setRuntimeConfig] = useState({
+    audited: false,
+    default_profile: "default",
+    profile_locked: true,
+    redirect_uri: "",
+    scopes: "user.info.basic,video.publish,video.upload",
+  });
 
   const [mode, setMode] = useState("PULL_FROM_URL");
   const [scheduledAt, setScheduledAt] = useState(isoLocalInput());
@@ -197,6 +203,15 @@ function App() {
     () => (typeof window !== "undefined" ? `${window.location.origin}/videos/tiktok_demo_960x540.mp4` : ""),
     []
   );
+  const effectiveProfile = useMemo(() => {
+    const locked = Boolean(runtimeConfig?.profile_locked);
+    if (locked) {
+      const fixed = String(runtimeConfig?.default_profile || "default").trim();
+      return fixed || "default";
+    }
+    const text = String(profile || "").trim();
+    return text || "default";
+  }, [profile, runtimeConfig]);
 
   const selectedTopic = useMemo(() => {
     if (selectedTopicIndex < 0 || selectedTopicIndex >= topics.length) {
@@ -232,9 +247,9 @@ function App() {
   const saveConfig = () => {
     if (typeof window !== "undefined") {
       localStorage.setItem(LOCAL_KEY_API, base);
-      localStorage.setItem(LOCAL_KEY_PROFILE, profile.trim() || "default");
+      localStorage.setItem(LOCAL_KEY_PROFILE, effectiveProfile);
     }
-    appendLog(`配置已保存：${base}, profile=${profile || "default"}`);
+    appendLog(`配置已保存：${base}, profile=${effectiveProfile}`);
   };
 
   const request = useCallback(async (path, options = {}) => {
@@ -320,9 +335,31 @@ function App() {
     }
   }, [request]);
 
+  const loadRuntimeConfig = useCallback(async () => {
+    try {
+      const data = await request("/api/v1/runtime-config");
+      const merged = {
+        audited: Boolean(data?.audited),
+        default_profile: String(data?.default_profile || "default"),
+        profile_locked: Boolean(data?.profile_locked),
+        redirect_uri: String(data?.redirect_uri || ""),
+        scopes: String(data?.scopes || "user.info.basic,video.publish,video.upload"),
+      };
+      setRuntimeConfig(merged);
+      if (merged.default_profile) {
+        setProfile(merged.default_profile);
+      }
+    } catch {
+      setRuntimeConfig((prev) => ({
+        ...prev,
+        redirect_uri: prev.redirect_uri || redirectUri,
+      }));
+    }
+  }, [redirectUri, request]);
+
   const loadAll = useCallback(async () => {
-    await Promise.all([loadAccounts(), loadPosts(), loadScheduler(), loadAiConfig()]);
-  }, [loadAccounts, loadAiConfig, loadPosts, loadScheduler]);
+    await Promise.all([loadAccounts(), loadPosts(), loadScheduler(), loadAiConfig(), loadRuntimeConfig()]);
+  }, [loadAccounts, loadAiConfig, loadPosts, loadRuntimeConfig, loadScheduler]);
 
   const useRecommendedApiBase = () => {
     const recommended = inferHostedApiBase() || "http://127.0.0.1:8787";
@@ -367,7 +404,7 @@ function App() {
 
     return {
       platform: "tiktok",
-      profile: profile.trim() || "default",
+      profile: effectiveProfile,
       mode,
       scheduled_at: toIsoSecond(scheduledAt),
       payload,
@@ -420,10 +457,7 @@ function App() {
   };
 
   const handleAuthUrl = async (openWindow = false) => {
-    const body = {
-      scopes: (authScopes || "").trim(),
-    };
-    const data = await request("/api/v1/tiktok/auth-url", { method: "POST", body });
+    const data = await request("/api/v1/tiktok/auth-url", { method: "POST", body: {} });
     const url = data.authorize_url || "";
     setAuthUrl(url);
     appendLog("已生成授权链接", data);
@@ -441,12 +475,12 @@ function App() {
 
     const data = await request("/api/v1/tiktok/exchange-token", {
       method: "POST",
-      body: { code, profile: profile.trim() || "default" },
+      body: { code, profile: effectiveProfile },
     });
     appendLog("换取 Token 成功", data);
     await loadAccounts();
     return data;
-  }, [appendLog, loadAccounts, profile, request]);
+  }, [appendLog, effectiveProfile, loadAccounts, request]);
 
   const handleExchange = async () => {
     if (!authCode.trim()) {
@@ -458,7 +492,7 @@ function App() {
   const handleRefreshToken = async () => {
     const data = await request("/api/v1/tiktok/refresh-token", {
       method: "POST",
-      body: { profile: profile.trim() || "default" },
+      body: { profile: effectiveProfile },
     });
     appendLog("刷新 Token 成功", data);
     await loadAccounts();
@@ -574,7 +608,7 @@ function App() {
       throw new Error("该任务没有 publish_id");
     }
     const body = {
-      profile: post.profile || profile.trim() || "default",
+      profile: post.profile || effectiveProfile,
       publish_id: post.publish_id,
     };
     const data = await request("/api/v1/tiktok/publish-status", { method: "POST", body });
@@ -740,23 +774,23 @@ function App() {
           <div className="grid two">
             <label>
               API Base
-              <input value={apiBase} onChange={(e) => setApiBase(e.target.value)} placeholder="https://api.athinker.net" />
+              <input readOnly value={base} />
             </label>
             <label>
               Profile
-              <input value={profile} onChange={(e) => setProfile(e.target.value)} placeholder="default" />
+              <input readOnly value={effectiveProfile} />
             </label>
           </div>
 
           <label>
             Redirect URI（TikTok 后台必须与此一致）
-            <input readOnly value={redirectUri} />
+            <input readOnly value={runtimeConfig.redirect_uri || redirectUri} />
           </label>
 
           <div className="rowActions">
-            <button className="btn ghost" onClick={saveConfig}>保存配置</button>
             <button className="btn ghost" onClick={() => runSafely(() => checkHealth(), "检查后端")}>检查后端</button>
-            <button className="btn ghost" onClick={() => runSafely(() => copyText(redirectUri, "Redirect URI"))}>复制 Redirect URI</button>
+            <button className="btn ghost" onClick={() => runSafely(() => copyText(runtimeConfig.redirect_uri || redirectUri, "Redirect URI"))}>复制 Redirect URI</button>
+            <button className="btn ghost" onClick={useRecommendedApiBase}>修正 API Base</button>
           </div>
 
           {callbackError ? (
@@ -832,21 +866,23 @@ function App() {
             <input value={apiBase} onChange={(e) => setApiBase(e.target.value)} placeholder="https://api.athinker.net" />
           </label>
           <label>
-            Profile
-            <input value={profile} onChange={(e) => setProfile(e.target.value)} placeholder="default" />
+            默认 Profile（生产锁定）
+            <input readOnly value={effectiveProfile} />
           </label>
           <label>
-            推荐动作
-            <div className="rowActions compact">
-              <button className="btn ghost" onClick={useRecommendedApiBase}>一键填后端地址</button>
-              <button className="btn ghost" onClick={() => runSafely(loadAll, "刷新数据")}>刷新全量数据</button>
-            </div>
+            运行模式
+            <input
+              readOnly
+              value={runtimeConfig.audited ? "Production（已审核，可公开发布）" : "Pre-Review（未审核，强制私密发布）"}
+            />
           </label>
         </div>
 
         <div className="rowActions">
           <button className="btn" onClick={saveConfig}>保存配置</button>
-          <button className="btn ghost" onClick={() => runSafely(() => copyText(redirectUri, "Redirect URI"))}>复制 Redirect URI</button>
+          <button className="btn ghost" onClick={useRecommendedApiBase}>一键填后端地址</button>
+          <button className="btn ghost" onClick={() => runSafely(loadAll, "刷新数据")}>刷新全量数据</button>
+          <button className="btn ghost" onClick={() => runSafely(() => copyText(runtimeConfig.redirect_uri || redirectUri, "Redirect URI"))}>复制 Redirect URI</button>
           <button className="btn ghost" onClick={() => runSafely(() => copyText(termsUri, "Terms URL"))}>复制服务条款 URL</button>
           <button className="btn ghost" onClick={() => runSafely(() => copyText(privacyUri, "Privacy URL"))}>复制隐私政策 URL</button>
         </div>
@@ -1051,7 +1087,11 @@ function App() {
               <div className="grid two">
                 <label>
                   可见性
-                  <select value={privacyLevel} onChange={(e) => setPrivacyLevel(e.target.value)}>
+                  <select
+                    value={runtimeConfig.audited ? privacyLevel : "SELF_ONLY"}
+                    disabled={!runtimeConfig.audited}
+                    onChange={(e) => setPrivacyLevel(e.target.value)}
+                  >
                     <option value="SELF_ONLY">SELF_ONLY</option>
                     <option value="PUBLIC_TO_EVERYONE">PUBLIC_TO_EVERYONE</option>
                     <option value="FOLLOWER_OF_CREATOR">FOLLOWER_OF_CREATOR</option>
@@ -1063,6 +1103,9 @@ function App() {
                   <input type="number" value={chunkSize} onChange={(e) => setChunkSize(e.target.value)} />
                 </label>
               </div>
+              {!runtimeConfig.audited ? (
+                <div className="warnBox">当前是未审核模式，后端会强制使用 `SELF_ONLY` 私密可见。</div>
+              ) : null}
 
               <div className="grid three compactGrid">
                 <label className="check"><input type="checkbox" checked={disableComment} onChange={(e) => setDisableComment(e.target.checked)} />禁评论</label>
@@ -1094,9 +1137,13 @@ function App() {
           <section className="stack">
             <article className="card">
               <h2>TikTok OAuth</h2>
+              <div className="plainMeta">
+                <div>运行模式：{runtimeConfig.audited ? "已审核（可公开发布）" : "未审核（仅私密发布）"}</div>
+                <div>固定 Profile：{effectiveProfile}</div>
+              </div>
               <label>
                 Redirect URI（填到 TikTok Login Kit）
-                <input readOnly value={redirectUri} />
+                <input readOnly value={runtimeConfig.redirect_uri || redirectUri} />
               </label>
               <div className="grid two">
                 <label>
@@ -1109,12 +1156,12 @@ function App() {
                 </label>
               </div>
               <label>
-                Scopes（逗号分隔）
-                <input value={authScopes} onChange={(e) => setAuthScopes(e.target.value)} placeholder="user.info.basic,video.publish,video.upload" />
+                Scopes（后端固定）
+                <input readOnly value={runtimeConfig.scopes || "user.info.basic,video.publish,video.upload"} />
               </label>
               <div className="rowActions">
                 <button className="btn" onClick={() => runSafely(() => handleAuthUrl(true), "生成授权链接")}>生成授权链接并打开</button>
-                <button className="btn ghost" onClick={() => runSafely(() => copyText(redirectUri, "Redirect URI"))}>复制回调地址</button>
+                <button className="btn ghost" onClick={() => runSafely(() => copyText(runtimeConfig.redirect_uri || redirectUri, "Redirect URI"))}>复制回调地址</button>
                 <button className="btn ghost" onClick={() => runSafely(handleRefreshToken, "刷新 Token")}>刷新 Token</button>
               </div>
               <label>
